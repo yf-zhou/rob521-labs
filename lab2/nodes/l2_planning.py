@@ -179,17 +179,48 @@ class PathPlanner:
         return positions
     
     def point_to_cell(self, point):
-        #Convert a series of [x,y] points in the map to the indices for the corresponding cell in the occupancy map
-        #point is a 2 by N matrix of points of interest
-        print("TO DO: Implement a method to get the map cell the robot is currently occupying")
+        # Convert a series of [x,y] points in the map to the indices for the corresponding cell in the occupancy map
+        # point is a 2 by N matrix of points of interest
 
-        return 0
+        # point (np.ndarray): An N by 2 matrix of points of interest, where N is the number of points.
+        # Returns: np.ndarray: An array of cell indices [row,col] in the occupancy map corresponding to each input point.
+
+        # Calibrate offset: 
+        origin = self.map_settings_dict["origin"][:2]
+        point_calibrated = point - origin
+
+
+        cell_idx = (point_calibrated/self.map_settings_dict["resolution"]).astype(int)
+        
+        # Flip Y-Axis
+        cell_idx[:, 1] = (cell_idx[:, 1] - self.map_shape[1])*-1
+
+        x = cell_idx[:, 1]
+        y = cell_idx[:, 0]
+
+        cell = np.column_stack((x, y))
+
+        return cell
+
 
     def points_to_robot_circle(self, points):
-        #Convert a series of [x,y] points to robot map footprints for collision detection
-        #Hint: The disk function is included to help you with this function
-        print("TO DO: Implement a method to get the pixel locations of the robot path")
-        return [], []
+        # Convert a series of [x,y] points to robot map footprints for collision detection
+        # Hint: The disk function is included to help you with this function
+        # print("TO DO: Implement a method to get the pixel locations of the robot path")
+
+        # Calling point_to_cell
+        points_idx = self.point_to_cell(points)  
+        robot_radius_in_cells = self.robot_radius / self.map_settings_dict["resolution"]
+        footprints = [[], []]
+        for i in range(points_idx.shape[0]):
+            row, col = points_idx[i]
+
+            # Generate the disk footprint (ensures points are within map boundaries)
+            rr, cc = disk(center=(row, col), radius=robot_radius_in_cells, shape=self.map_shape)
+            footprints.append(np.column_stack((rr, cc)))  # Stack rows and columns into Nx2 format
+
+        return footprints
+    
     #Note: If you have correctly completed all previous functions, then you should be able to create a working RRT function
 
     #RRT* specific functions
