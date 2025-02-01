@@ -142,7 +142,7 @@ class PathPlanner:
         s = r * arc_angle 
 
         # speeds
-        v = self.vel_max / 2 
+        v = self.vel_max
         w = direction * arc_angle * v / s 
 
         max_retry = 10
@@ -181,16 +181,7 @@ class PathPlanner:
     def point_to_cell(self, point):
         #Convert a series of [x,y] points in the map to the indices for the corresponding cell in the occupancy map
         #point is a 2 by N matrix of points of interest
-        # print("TO DO: Implement a method to get the map cell the robot is currently occupying")
-
-        resolution = self.map_settings_dict["resolution"]
-        offsets = self.map_settings_dict["origin"]
-
-        points = np.array(point)
-        points[0] = points[0] / resolution + offsets[0]
-        points[1] = points[1] / resolution + offsets[1]
-
-        # rotation 0
+        print("TO DO: Implement a method to get the map cell the robot is currently occupying")
 
         return 0
 
