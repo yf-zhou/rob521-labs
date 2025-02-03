@@ -279,8 +279,8 @@ class PathPlanner:
         print()
         start_time = time.time()
 
-        for i in range(max_steps): #Most likely need more iterations than this to complete the map!
-            print(f"\rPlanning... ({i}/{max_steps}) {time.time() - start_time:.2f}s", end='')
+        for step in range(max_steps): #Most likely need more iterations than this to complete the map!
+            print(f"\rPlanning... ({step}/{max_steps}) {time.time() - start_time:.2f}s", end='')
 
             #Sample map space
             point = self.sample_map_space()
@@ -300,20 +300,25 @@ class PathPlanner:
             traj_cells = self.points_to_robot_circle(trajectory_o[0:2, :].T)
 
             safe = True
+            at_goal = False
             for i, cells in enumerate(traj_cells):
                 occupied_cells = self.occupancy_map[cells[:, 0], cells[:, 1]]
                 if np.any(occupied_cells < 1):
                     safe = False 
                     break
+                if np.linalg.norm(self.goal_point.reshape((2,)) - trajectory_o[:2, i].reshape((2,))) < self.stopping_dist:
+                    at_goal = True 
+                    trajectory_o = trajectory_o[:, :i+1]
+                    break
 
             #Check if goal has been reached
             # print("TO DO: Check if at goal point.")
-            at_goal = False
-            for i, tp in enumerate(trajectory_o.T):
-                if np.linalg.norm(self.goal_point.reshape((2,)) - tp[:2]) < self.stopping_dist:
-                    at_goal = True
-                    trajectory_o = trajectory_o[:, :i+1]
-                    break
+            # at_goal = False
+            # for i, tp in enumerate(trajectory_o.T):
+            #     if np.linalg.norm(self.goal_point.reshape((2,)) - tp[:2]) < self.stopping_dist:
+            #         at_goal = True
+            #         trajectory_o = trajectory_o[:, :i+1]
+            #         break
 
             # add node to list if safe
             if safe:
@@ -325,11 +330,17 @@ class PathPlanner:
                 ))
 
                 # expand search space
-                endpoint = trajectory_o[:2, -1]
-                self.workspace[0, 0] = max(self.bounds[0, 0], min(self.workspace[0, 0], endpoint[0] - self.timestep * self.num_substeps * 1.5))
-                self.workspace[1, 0] = max(self.bounds[1, 0], min(self.workspace[1, 0], endpoint[1] - self.timestep * self.num_substeps * 1.5))
-                self.workspace[0, 1] = min(self.bounds[0, 1], max(self.workspace[0, 1], endpoint[0] + self.timestep * self.num_substeps * 1.5))
-                self.workspace[1, 1] = min(self.bounds[1, 1], max(self.workspace[1, 1], endpoint[1] + self.timestep * self.num_substeps * 1.5))
+                if step > 0.9*max_steps:
+                    self.workspace[0, 0] = max(self.bounds[0, 0], self.goal_point[0] - 3)
+                    self.workspace[1, 0] = max(self.bounds[1, 0], self.goal_point[1] - 3)
+                    self.workspace[0, 1] = min(self.bounds[0, 1], self.goal_point[0] + 3)
+                    self.workspace[1, 1] = min(self.bounds[1, 1], self.goal_point[1] + 3)        
+                else:
+                    endpoint = trajectory_o[:2, -1]
+                    self.workspace[0, 0] = max(self.bounds[0, 0], min(self.workspace[0, 0], endpoint[0] - self.timestep * self.num_substeps * 1.5))
+                    self.workspace[1, 0] = max(self.bounds[1, 0], min(self.workspace[1, 0], endpoint[1] - self.timestep * self.num_substeps * 1.5))
+                    self.workspace[0, 1] = min(self.bounds[0, 1], max(self.workspace[0, 1], endpoint[0] + self.timestep * self.num_substeps * 1.5))
+                    self.workspace[1, 1] = min(self.bounds[1, 1], max(self.workspace[1, 1], endpoint[1] + self.timestep * self.num_substeps * 1.5))
 
                 # visualise
                 # self.window.add_point(point.reshape((2,)), radius=3, color=(0, 0, 255))
@@ -340,10 +351,10 @@ class PathPlanner:
                 # for i, (tp1, tp2) in enumerate(zip(trajectory_o[0:2, :-1].T, trajectory_o[0:2, 1:].T)):
                 #     self.window.add_line(tp1, tp2)
                 # view window
-                # self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 0]]), width=3, color=(0, 0, 255))
-                # self.window.add_line(np.array([self.workspace[0, 1], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
-                # self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 0], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
-                # self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 1]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
+                self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 0]]), width=3, color=(0, 0, 255))
+                self.window.add_line(np.array([self.workspace[0, 1], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
+                self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 0], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
+                self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 1]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
 
             if at_goal:
                 break
@@ -396,17 +407,17 @@ class PathPlanner:
         return path
 
 def main():
-    np.random.seed(10000)   # 10000 is fast for simple_map
+    np.random.seed(207992)   # 10000 is fast for simple_map
     #Set map information
-    # map_filename = "willowgarageworld_05res.png"
-    # map_settings_filename = "willowgarageworld_05res.yaml"
-    map_filename = "simple_map.png"
-    map_settings_filename = "simple_map.yaml"
+    map_filename = "willowgarageworld_05res.png"
+    map_settings_filename = "willowgarageworld_05res.yaml"
+    # map_filename = "simple_map.png"
+    # map_settings_filename = "simple_map.yaml"
 
     #robot information
-    # goal_point = np.array([[10], [10]]) #m
-    # goal_point = np.array([[41.5, -44]])
-    goal_point = np.array([[30], [30]])
+    # goal_point = np.array([[10], [10]]) #m  # seed 20700
+    goal_point = np.array([[41.5], [-44]])
+    # goal_point = np.array([[30], [30]])
     stopping_dist = 0.5 #m
 
     #RRT precursor

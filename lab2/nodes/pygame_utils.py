@@ -27,13 +27,13 @@ class PygameWindow:
         self.map_settings_dict = map_settings_dict
         self.origin = np.array(map_settings_dict['origin'])
 
-        # map_img = pygame.image.load('../maps/willowgarageworld_05res.png')
-        map_img = pygame.image.load('../maps/simple_map.png')
+        map_img = pygame.image.load('../maps/willowgarageworld_05res.png')
+        # map_img = pygame.image.load('../maps/simple_map.png')
         map_img = pygame.transform.scale(map_img, self.size)
 
         self.screen = pygame.display.set_mode(self.size)
         self.screen.blit(map_img, (0, 0))
-        # pygame.display.flip()
+        pygame.display.flip()
 
         full_map_height = map_settings_dict['resolution'] * real_map_size_pixels[1]
         # 80 + -49.25 since origin is relative to bottom left corner, but pygame 0, 0 is top left corner
