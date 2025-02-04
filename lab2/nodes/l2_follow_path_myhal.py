@@ -183,7 +183,7 @@ class PathFollower():
                     ):
                         # print(f"y: {y} ({type(y)})")
                         # print(f"x: {x} ({type(x)})")
-                        if self.map_np[int(y), int(x)] > 0: 
+                        if self.map_np[int(y), int(x)] < 0: 
                             valid_opts.remove(opt) 
                             break  
                     else:
@@ -195,7 +195,8 @@ class PathFollower():
 
             # calculate final cost and choose best option
             # print("TO DO: Calculate the final cost and choose the best control option!")
-            final_cost = np.zeros(self.num_opts)
+            # final_cost = np.zeros(self.num_opts)
+            final_cost = np.ones(self.num_opts) * np.inf
             for opt in valid_opts:
                 last_pose = local_paths[-1, opt]
                 v_error = np.linalg.norm(last_pose[:2] - self.cur_goal[:2])
@@ -220,9 +221,15 @@ class PathFollower():
                 if len(valid_opts) < 1:
                     continue
                 print(valid_opts)
-                best_opt = valid_opts[final_cost.argmin()]
+                # best_opt = valid_opts[final_cost.argmin()]
+                best_opt = final_cost.argmin()
+                for opt in valid_opts:
+                    print(self.all_opts[opt])
+                print(final_cost)
+                print(best_opt)
 
                 control = self.all_opts[best_opt]
+                print(control)
                 self.local_path_pub.publish(utils.se2_pose_list_to_path(local_paths[:, best_opt], 'map'))
 
             # send command to robot
