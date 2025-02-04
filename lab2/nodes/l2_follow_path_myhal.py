@@ -106,7 +106,7 @@ class PathFollower():
         cur_dir = os.path.dirname(os.path.realpath(__file__))
 
         # to use the temp hardcoded paths above, switch the comment on the following two lines
-        self.path_tuples = np.load(os.path.join(cur_dir, 'shortest_path.npy')).T
+        self.path_tuples = np.load(os.path.join(cur_dir, 'path.npy')).T
         # self.path_tuples = np.array(TEMP_HARDCODE_PATH)
 
         self.path = utils.se2_pose_list_to_path(self.path_tuples, 'map')
@@ -233,6 +233,13 @@ class PathFollower():
             #     control=control, time=(rospy.Time.now() - tic).to_sec(), max_time=1/CONTROL_RATE))
 
             self.rate.sleep()
+
+            # print(self.pose_in_map_np)
+            # print(last_pose)
+
+            if np.linalg.norm(last_pose[:2] - np.array([7, 0])) < 0.5:
+                print("reached goal!")
+                break
 
     def update_pose(self):
         # Update numpy poses with current pose using the tf_buffer
