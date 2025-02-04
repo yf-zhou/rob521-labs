@@ -146,10 +146,23 @@ class PathFollower():
             local_paths = np.zeros([self.horizon_timesteps + 1, self.num_opts, 3])
             local_paths[0] = np.atleast_2d(self.pose_in_map_np).repeat(self.num_opts, axis=0)
 
-            print("TO DO: Propogate the trajectory forward, storing the resulting points in local_paths!")
+            
+            # print("TO DO: Propogate the trajectory forward, storing the resulting points in local_paths!")
             for t in range(1, self.horizon_timesteps + 1):
-                # propogate trajectory forward, assuming perfect control of velocity and no dynamic effects
-                pass
+                for i in range (self.num_opts):
+                    
+                    vel, rot_vel = self.all_opts_scaled[i]
+                    x, y, theta = local_paths[t-1, i]
+                    R = np.matrix([
+                        [np.cos(theta), -np.sin(theta), 0],
+                        [np.sin(theta), np.cos(theta), 0],
+                        [0, 0, 1]
+                    ])
+                    q_dot = R @ np.array([[vel, 0, rot_vel]]).T
+                    dx = q_dot[0]
+                    dy = q_dot[1]
+                    dtheta = q_dot[2]
+                    local_paths[t, i] = [x+dx, y+dy, theta+dtheta]
 
             # check all trajectory points for collisions
             # first find the closest collision point in the map to each local path point
@@ -157,17 +170,44 @@ class PathFollower():
             valid_opts = range(self.num_opts)
             local_paths_lowest_collision_dist = np.ones(self.num_opts) * 50
 
-            print("TO DO: Check the points in local_path_pixels for collisions")
+            #print("TO DO: Check the points in local_path_pixels for collisions")
+            
             for opt in range(local_paths_pixels.shape[1]):
                 for timestep in range(local_paths_pixels.shape[0]):
-                    pass
+                    x = local_paths_pixels[timestep, opt] [0]
+                    y = local_paths_pixels[timestep, opt] [1]
+
+                    # Check if the point is within the map bounds and for collisions
+                    if (0 <= x < self.map_np.shape[1]) and (
+                        0 <= y < self.map_np.shape[0]
+                    ):
+                        if self.map_np[y, x] > 0: 
+                            valid_opts.remove(opt) 
+                            break  
+                    else:
+                        valid_opts.remove(opt) 
+                        break  
 
             # remove trajectories that were deemed to have collisions
-            print("TO DO: Remove trajectories with collisions!")
+            # print("TO DO: Remove trajectories with collisions!")
 
             # calculate final cost and choose best option
-            print("TO DO: Calculate the final cost and choose the best control option!")
+            # print("TO DO: Calculate the final cost and choose the best control option!")
             final_cost = np.zeros(self.num_opts)
+            for opt in valid_opts:
+                last_pose = local_paths[-1, opt]
+                v_error = np.linalg.norm(last_pose[:2] - self.cur_goal[:2])
+
+                rot_error = np.arctan2(self.cur_goal[1] - last_pose[1], self.cur_goal[0] - last_pose[0]) - last_pose[2]
+                rot_error = (rot_error + np.pi) % (2 * np.pi) - np.pi  # Normalize to [-π, π]
+                # calculate costs based on distance to goal and rotation error
+                distance_cost = v_error  # Assuming distance cost is directly proportional to trans_error
+                rotation_cost = rot_error * ROT_DIST_MULT
+                obstacle_cost = OBS_DIST_MULT / max(local_paths_lowest_collision_dist[opt], 1e-6)  # Avoid divide-by-zero
+
+                # sum up the costs
+                final_cost[opt] = distance_cost + rotation_cost + obstacle_cost
+
             if final_cost.size == 0:  # hardcoded recovery if all options have collision
                 control = [-.1, 0]
             else:

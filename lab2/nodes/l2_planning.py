@@ -268,13 +268,14 @@ class PathPlanner:
         return
 
     #Planner Functions
-    def rrt_planning(self, max_steps=1000):
+    def rrt_planning(self, max_steps=1000, focused_window=5):
         #This function performs RRT on the given map and robot
         #You do not need to demonstrate this function to the TAs, but it is left in for you to check your work
-        self.workspace = np.array([
-            [-1, 1],
-            [-1, 1]
-        ], dtype='float') * 2
+        # self.workspace = np.array([
+        #     [-1, 1],
+        #     [-1, 1]
+        # ], dtype='float') * 2
+        self.workspace = self.bounds
 
         print()
         start_time = time.time()
@@ -331,10 +332,10 @@ class PathPlanner:
 
                 # expand search space
                 if step > 0.9*max_steps:
-                    self.workspace[0, 0] = max(self.bounds[0, 0], self.goal_point[0] - 3)
-                    self.workspace[1, 0] = max(self.bounds[1, 0], self.goal_point[1] - 3)
-                    self.workspace[0, 1] = min(self.bounds[0, 1], self.goal_point[0] + 3)
-                    self.workspace[1, 1] = min(self.bounds[1, 1], self.goal_point[1] + 3)        
+                    self.workspace[0, 0] = max(self.bounds[0, 0], self.goal_point[0] - focused_window)
+                    self.workspace[1, 0] = max(self.bounds[1, 0], self.goal_point[1] - focused_window)
+                    self.workspace[0, 1] = min(self.bounds[0, 1], self.goal_point[0] + focused_window)
+                    self.workspace[1, 1] = min(self.bounds[1, 1], self.goal_point[1] + focused_window)        
                 else:
                     endpoint = trajectory_o[:2, -1]
                     self.workspace[0, 0] = max(self.bounds[0, 0], min(self.workspace[0, 0], endpoint[0] - self.timestep * self.num_substeps * 1.5))
@@ -351,10 +352,10 @@ class PathPlanner:
                 # for i, (tp1, tp2) in enumerate(zip(trajectory_o[0:2, :-1].T, trajectory_o[0:2, 1:].T)):
                 #     self.window.add_line(tp1, tp2)
                 # view window
-                self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 0]]), width=3, color=(0, 0, 255))
-                self.window.add_line(np.array([self.workspace[0, 1], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
-                self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 0], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
-                self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 1]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
+                # self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 0]]), width=3, color=(0, 0, 255))
+                # self.window.add_line(np.array([self.workspace[0, 1], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
+                # self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 0], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
+                # self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 1]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
 
             if at_goal:
                 break
@@ -407,23 +408,26 @@ class PathPlanner:
         return path
 
 def main():
-    np.random.seed(207992)   # 10000 is fast for simple_map
+    np.random.seed(10000)   # 10000 is fast for simple_map
     #Set map information
-    map_filename = "willowgarageworld_05res.png"
-    map_settings_filename = "willowgarageworld_05res.yaml"
+    # map_filename = "willowgarageworld_05res.png"
+    # map_settings_filename = "willowgarageworld_05res.yaml"
     # map_filename = "simple_map.png"
     # map_settings_filename = "simple_map.yaml"
+    map_filename = "myhal.png"
+    map_settings_filename = "myhal.yaml"
 
     #robot information
     # goal_point = np.array([[10], [10]]) #m  # seed 20700
-    goal_point = np.array([[41.5], [-44]])
+    # goal_point = np.array([[41.5], [-44]])
     # goal_point = np.array([[30], [30]])
+    goal_point = np.array([[7], [0]])
     stopping_dist = 0.5 #m
 
     #RRT precursor
     path_planner = PathPlanner(map_filename, map_settings_filename, goal_point, stopping_dist)
     # nodes = path_planner.rrt_star_planning()
-    nodes = path_planner.rrt_planning(10000)
+    nodes = path_planner.rrt_planning(10000, 5)
     node_path_metric = np.hstack(path_planner.recover_path())
 
     #Leftover test functions
