@@ -59,8 +59,8 @@ class PathPlanner:
         self.stopping_dist = stopping_dist #m
 
         #Trajectory Simulation Parameters
-        self.timestep = 1.0 #s
-        self.num_substeps = 10
+        self.timestep = 0.1 #s
+        self.num_substeps = 100
 
         #Planning storage
         self.nodes = [Node(np.zeros((3,1)), -1, 0)]

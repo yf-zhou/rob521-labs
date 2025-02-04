@@ -106,7 +106,7 @@ class PathFollower():
         cur_dir = os.path.dirname(os.path.realpath(__file__))
 
         # to use the temp hardcoded paths above, switch the comment on the following two lines
-        self.path_tuples = np.load(os.path.join(cur_dir, 'path.npy')).T
+        self.path_tuples = np.load(os.path.join(cur_dir, 'shortest_path.npy')).T
         # self.path_tuples = np.array(TEMP_HARDCODE_PATH)
 
         self.path = utils.se2_pose_list_to_path(self.path_tuples, 'map')
@@ -162,12 +162,12 @@ class PathFollower():
                     dx = q_dot[0]
                     dy = q_dot[1]
                     dtheta = q_dot[2]
-                    local_paths[t, i] = [x+dx, y+dy, theta+dtheta]
+                    local_paths[t, i] = np.array([x+dx, y+dy, theta+dtheta]).reshape((3,))
 
             # check all trajectory points for collisions
             # first find the closest collision point in the map to each local path point
             local_paths_pixels = (self.map_origin[:2] + local_paths[:, :, :2]) / self.map_resolution
-            valid_opts = range(self.num_opts)
+            valid_opts = list(range(self.num_opts))
             local_paths_lowest_collision_dist = np.ones(self.num_opts) * 50
 
             #print("TO DO: Check the points in local_path_pixels for collisions")
@@ -181,7 +181,9 @@ class PathFollower():
                     if (0 <= x < self.map_np.shape[1]) and (
                         0 <= y < self.map_np.shape[0]
                     ):
-                        if self.map_np[y, x] > 0: 
+                        # print(f"y: {y} ({type(y)})")
+                        # print(f"x: {x} ({type(x)})")
+                        if self.map_np[int(y), int(x)] > 0: 
                             valid_opts.remove(opt) 
                             break  
                     else:
@@ -211,7 +213,15 @@ class PathFollower():
             if final_cost.size == 0:  # hardcoded recovery if all options have collision
                 control = [-.1, 0]
             else:
+                # print(valid_opts)
+                # print(len(valid_opts))
+                # print(final_cost.argmin())
+                # print(valid_opts[final_cost.argmin()])
+                if len(valid_opts) < 1:
+                    continue
+                print(valid_opts)
                 best_opt = valid_opts[final_cost.argmin()]
+
                 control = self.all_opts[best_opt]
                 self.local_path_pub.publish(utils.se2_pose_list_to_path(local_paths[:, best_opt], 'map'))
 
