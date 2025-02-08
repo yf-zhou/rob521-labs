@@ -23,7 +23,7 @@ class PygameWindow:
         pygame.display.set_caption(name)
 
         self.size = size
-        self.meters_per_pixel = map_settings_dict['resolution'] / self.size[0] * real_map_size_pixels[0]
+        self.meters_per_pixel = map_settings_dict['resolution'] / self.size[0] * real_map_size_pixels[1]
         self.map_settings_dict = map_settings_dict
         self.origin = np.array(map_settings_dict['origin'])
 
@@ -36,7 +36,7 @@ class PygameWindow:
         self.screen.blit(map_img, (0, 0))
         pygame.display.flip()
 
-        full_map_height = map_settings_dict['resolution'] * real_map_size_pixels[1]
+        full_map_height = map_settings_dict['resolution'] * real_map_size_pixels[0]
         # 80 + -49.25 since origin is relative to bottom left corner, but pygame 0, 0 is top left corner
         self.origin_pixels = np.array([-self.origin[0], full_map_height + self.origin[1]]) / self.meters_per_pixel
 

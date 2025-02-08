@@ -42,6 +42,8 @@ class PathPlanner:
         self.map_shape = self.occupancy_map.shape
         self.map_settings_dict = load_map_yaml(map_settings_filename)
 
+        self.origin = np.array(self.map_settings_dict["origin"][:2]).reshape((2, 1))
+
         #Get the metric bounds of the map
         self.bounds = np.zeros([2,2]) #m
         self.bounds[0, 0] = self.map_settings_dict["origin"][0]
@@ -53,6 +55,8 @@ class PathPlanner:
         self.robot_radius = 0.22 #m
         self.vel_max = 0.5 #m/s (Feel free to change!)
         self.rot_vel_max = 0.2 #rad/s (Feel free to change!)
+
+        self.robot_cells = np.ceil(self.robot_radius / self.map_settings_dict['resolution'])
 
         #Goal Parameters
         self.goal_point = goal_point #m
@@ -75,7 +79,9 @@ class PathPlanner:
         
         #Pygame window for visualization
         self.window = pygame_utils.PygameWindow(
-            "Path Planner", (1000, 1000), self.occupancy_map.shape, self.map_settings_dict, self.goal_point, self.stopping_dist)
+            # "Path Planner", (1000, 1000), self.occupancy_map.shape, self.map_settings_dict, self.goal_point, self.stopping_dist)
+            # "Path Planner", (245, 795), self.occupancy_map.shape, self.map_settings_dict, self.goal_point, self.stopping_dist)
+            "Path Planner", (795, 245), self.occupancy_map.shape, self.map_settings_dict, self.goal_point, self.stopping_dist)
         return
 
     #Functions required for RRT
@@ -115,7 +121,7 @@ class PathPlanner:
 
         return closest
     
-    def simulate_trajectory(self, point_i: np.ndarray, point_s: np.ndarray) -> np.ndarray:
+    def simulate_trajectory(self, point_i: np.ndarray, point_s: np.ndarray):
         #Simulates the non-holonomic motion of the robot.
         #This function drives the robot from node_i towards point_s. This function does has many solutions!
         #node_i is a 3 by 1 vector [x;y;theta] this can be used to construct the SE(2) matrix T_{OI} in course notation
@@ -174,7 +180,7 @@ class PathPlanner:
 
         return v, w
     
-    def trajectory_rollout(self, origin: np.ndarray, vel: float, rot_vel: float) -> np.ndarray:
+    def trajectory_rollout(self, origin: np.ndarray, vel: float, rot_vel: float):
         # Given your chosen velocities determine the trajectory of the robot for your given timestep
         # The returned trajectory should be a series of points to check for collisions
         # print("TO DO: Implement a way to rollout the controls chosen")
@@ -206,21 +212,28 @@ class PathPlanner:
         # Returns: np.ndarray: An array of cell indices [row,col] in the occupancy map corresponding to each input point.
 
         # Calibrate offset: 
-        origin = self.map_settings_dict["origin"][:2]
-        point_calibrated = point - origin
+        # origin = self.map_settings_dict["origin"][:2]
+        # point_calibrated = point - origin
+
+        # cell_idx = (point_calibrated/self.map_settings_dict["resolution"]).astype(int)
 
 
-        cell_idx = (point_calibrated/self.map_settings_dict["resolution"]).astype(int)
+        cells = (point - self.origin) / self.map_settings_dict['resolution']
+        cells = cells.astype(int)        
         
         # Flip Y-Axis
-        cell_idx[:, 1] = (cell_idx[:, 1] - self.map_shape[1])*-1
+        # cell_idx[:, 1] = (cell_idx[:, 1] - self.map_shape[1])*-1
+        # cells[:, 1] = self.map_shape[0] - cells[:, 1]
+        cells[1, :] = self.map_shape[0] - cells[1, :]
 
-        x = cell_idx[:, 1]
-        y = cell_idx[:, 0]
+        # x = cell_idx[:, 1]
+        # y = cell_idx[:, 0]
 
-        cell = np.column_stack((x, y))
+        # cell = np.column_stack((x, y))
 
-        return cell
+        # return cell
+        # return np.hstack([cells[:, [1]], cells[:, [0]]])
+        return np.vstack([cells[[1], :], cells[[0], :]])
 
 
     def points_to_robot_circle(self, points):
@@ -229,15 +242,22 @@ class PathPlanner:
         # print("TO DO: Implement a method to get the pixel locations of the robot path")
 
         # Calling point_to_cell
-        points_idx = self.point_to_cell(points)  
-        robot_radius_in_cells = self.robot_radius / self.map_settings_dict["resolution"]
-        footprints = []
-        for i in range(points_idx.shape[0]):
-            row, col = points_idx[i]
+        # points_idx = self.point_to_cell(points)  
+        # robot_radius_in_cells = self.robot_radius / self.map_settings_dict["resolution"]
+        # footprints = []
+        # for i in range(points_idx.shape[0]):
+        #     row, col = points_idx[i]
 
-            # Generate the disk footprint (ensures points are within map boundaries)
-            rr, cc = disk(center=(row, col), radius=robot_radius_in_cells, shape=self.map_shape)
-            footprints.append(np.column_stack((rr, cc)))  # Stack rows and columns into Nx2 format
+        #     # Generate the disk footprint (ensures points are within map boundaries)
+        #     rr, cc = disk(center=(row, col), radius=robot_radius_in_cells, shape=self.map_shape)
+        #     footprints.append(np.column_stack((rr, cc)))  # Stack rows and columns into Nx2 format
+
+        # return footprints
+        cells = self.point_to_cell(points)
+        footprints = np.array([], dtype=int).reshape((2, 0))
+        for cell in cells.T:
+            footprint = np.vstack(disk(center=cell, radius=self.robot_cells, shape=self.map_shape))
+            footprints = np.hstack([footprints, footprint])
 
         return footprints
     
@@ -298,16 +318,30 @@ class PathPlanner:
             # print("TO DO: Check for collisions and add safe points to list of nodes.")
 
             # occupied cells along trajectory
-            traj_cells = self.points_to_robot_circle(trajectory_o[0:2, :].T)
+            # traj_cells = self.points_to_robot_circle(trajectory_o[0:2, :].T)
+            traj_cells = self.points_to_robot_circle(trajectory_o[0:2, :])
 
-            safe = True
+            # trajectory safe?
+            if np.any(self.occupancy_map[traj_cells[0, :], traj_cells[1, :]] < 1):
+                continue
+            # if np.any(traj_cells[0, :] < 0) or np.any(traj_cells[0, :] > self.map_shape[0]) or np.any(traj_cells[1, :] < 0) or np.any(traj_cells[1, :] > self.map_shape[1]):
+            if np.any(trajectory_o[0, :] < self.bounds[0, 0]) or np.any(trajectory_o[0, :] > self.bounds[0, 1]) \
+                or np.any(trajectory_o[1, :] < self.bounds[1, 0]) or np.any(trajectory_o[1, :] > self.bounds[1, 1]):
+                continue
+
+            # safe = True
             at_goal = False
-            for i, cells in enumerate(traj_cells):
-                occupied_cells = self.occupancy_map[cells[:, 0], cells[:, 1]]
-                if np.any(occupied_cells < 1):
-                    safe = False 
-                    break
-                if np.linalg.norm(self.goal_point.reshape((2,)) - trajectory_o[:2, i].reshape((2,))) < self.stopping_dist:
+            # for i, cells in enumerate(traj_cells.T):
+            #     # occupied_cells = self.occupancy_map[cells[:, 0], cells[:, 1]]
+            #     # if np.any(occupied_cells < 1):
+            #     #     safe = False 
+            #     #     break
+            #     if np.linalg.norm(self.goal_point.reshape((2,)) - trajectory_o[:2, i].reshape((2,))) < self.stopping_dist:
+            #         at_goal = True 
+            #         trajectory_o = trajectory_o[:, :i+1]
+            #         break
+            for i, p in enumerate(trajectory_o[:2, :].T):
+                if np.linalg.norm(self.goal_point.reshape((2,)) - p.reshape((2,))) < self.stopping_dist:
                     at_goal = True 
                     trajectory_o = trajectory_o[:, :i+1]
                     break
@@ -322,40 +356,42 @@ class PathPlanner:
             #         break
 
             # add node to list if safe
-            if safe:
-                self.nodes.append(Node(
-                    # np.vstack([point, trajectory_o[-1, -1]]),
-                    trajectory_o[:, -1].reshape((3, 1)),
-                    closest_node_id,
-                    self.nodes[closest_node_id].cost + 1
-                ))
+            # if safe:
+            self.nodes.append(Node(
+                # np.vstack([point, trajectory_o[-1, -1]]),
+                trajectory_o[:, -1].reshape((3, 1)),
+                closest_node_id,
+                self.nodes[closest_node_id].cost + 1
+            ))
 
-                # expand search space
-                if step > 0.9*max_steps:
-                    self.workspace[0, 0] = max(self.bounds[0, 0], self.goal_point[0] - focused_window)
-                    self.workspace[1, 0] = max(self.bounds[1, 0], self.goal_point[1] - focused_window)
-                    self.workspace[0, 1] = min(self.bounds[0, 1], self.goal_point[0] + focused_window)
-                    self.workspace[1, 1] = min(self.bounds[1, 1], self.goal_point[1] + focused_window)        
-                else:
-                    endpoint = trajectory_o[:2, -1]
-                    self.workspace[0, 0] = max(self.bounds[0, 0], min(self.workspace[0, 0], endpoint[0] - self.timestep * self.num_substeps * 1.5))
-                    self.workspace[1, 0] = max(self.bounds[1, 0], min(self.workspace[1, 0], endpoint[1] - self.timestep * self.num_substeps * 1.5))
-                    self.workspace[0, 1] = min(self.bounds[0, 1], max(self.workspace[0, 1], endpoint[0] + self.timestep * self.num_substeps * 1.5))
-                    self.workspace[1, 1] = min(self.bounds[1, 1], max(self.workspace[1, 1], endpoint[1] + self.timestep * self.num_substeps * 1.5))
+            print(f"\tpoint: {np.round(trajectory_o[:, -1], 3)}")
 
-                # visualise
-                # self.window.add_point(point.reshape((2,)), radius=3, color=(0, 0, 255))
-                # self.window.add_se2_pose(np.hstack([np.reshape(point, (2,)), trajectory_o[-1, -1]]), length=5, color=(0, 0, 255))
-                self.window.add_se2_pose(trajectory_o[:, -1].reshape(3,), length=5, color=(0, 0, 255))
-                for i, tp in enumerate(trajectory_o[0:2, :].T):
-                    self.window.add_point(tp, radius=1, color=(0, 50, 0))
-                # for i, (tp1, tp2) in enumerate(zip(trajectory_o[0:2, :-1].T, trajectory_o[0:2, 1:].T)):
-                #     self.window.add_line(tp1, tp2)
-                # view window
-                # self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 0]]), width=3, color=(0, 0, 255))
-                # self.window.add_line(np.array([self.workspace[0, 1], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
-                # self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 0], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
-                # self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 1]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
+            # expand search space
+            if step > 0.9*max_steps:
+                self.workspace[0, 0] = max(self.bounds[0, 0], self.goal_point[0] - focused_window)
+                self.workspace[1, 0] = max(self.bounds[1, 0], self.goal_point[1] - focused_window)
+                self.workspace[0, 1] = min(self.bounds[0, 1], self.goal_point[0] + focused_window)
+                self.workspace[1, 1] = min(self.bounds[1, 1], self.goal_point[1] + focused_window)        
+            else:
+                endpoint = trajectory_o[:2, -1]
+                self.workspace[0, 0] = max(self.bounds[0, 0], min(self.workspace[0, 0], endpoint[0] - self.timestep * self.num_substeps * 1.5))
+                self.workspace[1, 0] = max(self.bounds[1, 0], min(self.workspace[1, 0], endpoint[1] - self.timestep * self.num_substeps * 1.5))
+                self.workspace[0, 1] = min(self.bounds[0, 1], max(self.workspace[0, 1], endpoint[0] + self.timestep * self.num_substeps * 1.5))
+                self.workspace[1, 1] = min(self.bounds[1, 1], max(self.workspace[1, 1], endpoint[1] + self.timestep * self.num_substeps * 1.5))
+
+            # visualise
+            # self.window.add_point(point.reshape((2,)), radius=3, color=(0, 0, 255))
+            # self.window.add_se2_pose(np.hstack([np.reshape(point, (2,)), trajectory_o[-1, -1]]), length=5, color=(0, 0, 255))
+            self.window.add_se2_pose(trajectory_o[:, -1].reshape(3,), length=5, color=(0, 0, 255))
+            for i, tp in enumerate(trajectory_o[0:2, :].T):
+                self.window.add_point(tp, radius=1, color=(0, 50, 0))
+            # for i, (tp1, tp2) in enumerate(zip(trajectory_o[0:2, :-1].T, trajectory_o[0:2, 1:].T)):
+            #     self.window.add_line(tp1, tp2)
+            # view window
+            # self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 0]]), width=3, color=(0, 0, 255))
+            # self.window.add_line(np.array([self.workspace[0, 1], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
+            # self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 0], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
+            # self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 1]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=3, color=(0, 0, 255))
 
             if at_goal:
                 break
