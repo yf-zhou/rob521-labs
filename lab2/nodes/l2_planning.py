@@ -444,7 +444,7 @@ class PathPlanner:
         return path
 
 def main():
-    np.random.seed(10000)   # 10000 is fast for simple_map
+    np.random.seed(10000)   # 10000 is fast for simple_map, takes 535 steps for myhal
     #Set map information
     # map_filename = "willowgarageworld_05res.png"
     # map_settings_filename = "willowgarageworld_05res.yaml"
