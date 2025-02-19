@@ -45,11 +45,14 @@ class PathPlanner:
         self.origin = np.array(self.map_settings_dict["origin"][:2]).reshape((2, 1))
 
         #Get the metric bounds of the map
-        self.bounds = np.zeros([2,2]) #m
-        self.bounds[0, 0] = self.map_settings_dict["origin"][0]
-        self.bounds[1, 0] = self.map_settings_dict["origin"][1]
-        self.bounds[0, 1] = self.map_settings_dict["origin"][0] + self.map_shape[1] * self.map_settings_dict["resolution"]
-        self.bounds[1, 1] = self.map_settings_dict["origin"][1] + self.map_shape[0] * self.map_settings_dict["resolution"]
+        # self.bounds = np.zeros([2,2]) #m
+        # self.bounds[0, 0] = self.map_settings_dict["origin"][0]
+        # self.bounds[1, 0] = self.map_settings_dict["origin"][1]
+        # self.bounds[0, 1] = self.map_settings_dict["origin"][0] + self.map_shape[1] * self.map_settings_dict["resolution"]
+        # self.bounds[1, 1] = self.map_settings_dict["origin"][1] + self.map_shape[0] * self.map_settings_dict["resolution"]
+
+        # [[-2, 12], [45, 12], [-2, -48], [45, -48]]
+        self.bounds = np.array([[-2, 45], [-48, 12]])
 
         #Robot information
         self.robot_radius = 0.22 #m
@@ -63,8 +66,10 @@ class PathPlanner:
         self.stopping_dist = stopping_dist #m
 
         #Trajectory Simulation Parameters
-        self.timestep = 0.1 #s
-        self.num_substeps = 100
+        # self.timestep = 0.1 #s
+        # self.num_substeps = 100
+        self.timestep = 0.5 #s
+        self.num_substeps = 20
 
         #Planning storage
         self.nodes = [Node(np.zeros((3,1)), -1, 0)]
@@ -79,9 +84,9 @@ class PathPlanner:
         
         #Pygame window for visualization
         self.window = pygame_utils.PygameWindow(
-            # "Path Planner", (1000, 1000), self.occupancy_map.shape, self.map_settings_dict, self.goal_point, self.stopping_dist)
+            "Path Planner", (1000, 1000), self.occupancy_map.shape, self.map_settings_dict, self.goal_point, self.stopping_dist)
             # "Path Planner", (245, 795), self.occupancy_map.shape, self.map_settings_dict, self.goal_point, self.stopping_dist)
-            "Path Planner", (795, 245), self.occupancy_map.shape, self.map_settings_dict, self.goal_point, self.stopping_dist)
+            # "Path Planner", (795, 245), self.occupancy_map.shape, self.map_settings_dict, self.goal_point, self.stopping_dist)
         return
 
     #Functions required for RRT
@@ -291,11 +296,11 @@ class PathPlanner:
     def rrt_planning(self, max_steps=1000, focused_window=5):
         #This function performs RRT on the given map and robot
         #You do not need to demonstrate this function to the TAs, but it is left in for you to check your work
-        # self.workspace = np.array([
-        #     [-1, 1],
-        #     [-1, 1]
-        # ], dtype='float') * 2
-        self.workspace = self.bounds
+        self.workspace = np.array([
+            [-1, 1],
+            [-1, 1]
+        ], dtype='float') * 2
+        # self.workspace = self.bounds
 
         print()
         start_time = time.time()
@@ -364,14 +369,20 @@ class PathPlanner:
                 self.nodes[closest_node_id].cost + 1
             ))
 
-            print(f"\tpoint: {np.round(trajectory_o[:, -1], 3)}")
+            # print(f"\tpoint: {np.round(trajectory_o[:, -1], 3)}")
 
             # expand search space
             if step > 0.9*max_steps:
-                self.workspace[0, 0] = max(self.bounds[0, 0], self.goal_point[0] - focused_window)
-                self.workspace[1, 0] = max(self.bounds[1, 0], self.goal_point[1] - focused_window)
-                self.workspace[0, 1] = min(self.bounds[0, 1], self.goal_point[0] + focused_window)
-                self.workspace[1, 1] = min(self.bounds[1, 1], self.goal_point[1] + focused_window)        
+                # self.workspace[0, 0] = max(self.bounds[0, 0], self.goal_point[0] - focused_window)
+                # self.workspace[1, 0] = max(self.bounds[1, 0], self.goal_point[1] - focused_window)
+                # self.workspace[0, 1] = min(self.bounds[0, 1], self.goal_point[0] + focused_window)
+                # self.workspace[1, 1] = min(self.bounds[1, 1], self.goal_point[1] + focused_window)  
+                # [38, -42], [45, -42], [38, -46], [45, -46]
+                self.workspace = np.array([[38, 45], [-46, -42]]) 
+            elif step > 0.7*max_steps: 
+                self.workspace = np.array([[25, 45], [-48, -30]])                
+            elif step > 0.4*max_steps:
+                self.workspace = np.array([[20, 45], [-48, -10]]) 
             else:
                 endpoint = trajectory_o[:2, -1]
                 self.workspace[0, 0] = max(self.bounds[0, 0], min(self.workspace[0, 0], endpoint[0] - self.timestep * self.num_substeps * 1.5))
@@ -406,6 +417,9 @@ class PathPlanner:
             # for j, tp in enumerate(traj[0:2, :].T):
             #     self.window.add_point(tp, radius=3, color=(100, 255, 100))
         self.window.add_se2_pose(path[-1][:, 0], length=10, color=(0, 255, 0))
+
+        with open('interim_path.npy', 'wb') as f:
+            np.save(f, path)
 
         return self.nodes
     
@@ -444,26 +458,27 @@ class PathPlanner:
         return path
 
 def main():
-    np.random.seed(10000)   # 10000 is fast for simple_map, takes 535 steps for myhal
+    np.random.seed(500)   # 10000 is fast for simple_map, takes 535 steps for myhal
+    # seed 500: 16245 for willow (via outside)
     #Set map information
-    # map_filename = "willowgarageworld_05res.png"
-    # map_settings_filename = "willowgarageworld_05res.yaml"
+    map_filename = "willowgarageworld_05res.png"
+    map_settings_filename = "willowgarageworld_05res.yaml"
     # map_filename = "simple_map.png"
     # map_settings_filename = "simple_map.yaml"
-    map_filename = "myhal.png"
-    map_settings_filename = "myhal.yaml"
+    # map_filename = "myhal.png"
+    # map_settings_filename = "myhal.yaml"
 
     #robot information
     # goal_point = np.array([[10], [10]]) #m  # seed 20700
-    # goal_point = np.array([[41.5], [-44]])
+    goal_point = np.array([[41.5], [-44]])
     # goal_point = np.array([[30], [30]])
-    goal_point = np.array([[7], [0]])
+    # goal_point = np.array([[7], [0]])
     stopping_dist = 0.5 #m
 
     #RRT precursor
     path_planner = PathPlanner(map_filename, map_settings_filename, goal_point, stopping_dist)
     # nodes = path_planner.rrt_star_planning()
-    nodes = path_planner.rrt_planning(10000, 5)
+    nodes = path_planner.rrt_planning(20000, 5)
     node_path_metric = np.hstack(path_planner.recover_path())
 
     #Leftover test functions
