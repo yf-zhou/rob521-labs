@@ -28,7 +28,7 @@ COLLISION_RADIUS = 0.225  # m, radius from base_link to use for collisions, min 
 ROT_DIST_MULT = .1  # multiplier to change effect of rotational distance in choosing correct control
 OBS_DIST_MULT = .1  # multiplier to change the effect of low distance to obstacles on a path
 MIN_TRANS_DIST_TO_USE_ROT = TRANS_GOAL_TOL  # m, robot has to be within this distance to use rot distance in cost
-PATH_NAME = 'myhal_path_backwards.npy'  # saved path from l2_planning.py, should be in the same directory as this file
+PATH_NAME = 'path.npy'  # saved path from l2_planning.py, should be in the same directory as this file
 
 # here are some hardcoded paths to use if you want to develop l2_planning and this file in parallel
 # TEMP_HARDCODE_PATH = [[2, 0, 0], [2.75, -1, -np.pi/2], [2.75, -4, -np.pi/2], [2, -4.4, np.pi]]  # almost collision-free
@@ -106,8 +106,7 @@ class PathFollower():
         cur_dir = os.path.dirname(os.path.realpath(__file__))
 
         # to use the temp hardcoded paths above, switch the comment on the following two lines
-        # self.path_tuples = np.load(os.path.join(cur_dir, 'path.npy')).T
-        self.path_tuples = np.load(os.path.join(cur_dir, PATH_NAME))[:, ::-1].T
+        self.path_tuples = np.load(os.path.join(cur_dir, 'path.npy')).T
         # self.path_tuples = np.array(TEMP_HARDCODE_PATH)
 
         self.path = utils.se2_pose_list_to_path(self.path_tuples, 'map')
@@ -147,33 +146,90 @@ class PathFollower():
             local_paths = np.zeros([self.horizon_timesteps + 1, self.num_opts, 3])
             local_paths[0] = np.atleast_2d(self.pose_in_map_np).repeat(self.num_opts, axis=0)
 
-            print("TO DO: Propogate the trajectory forward, storing the resulting points in local_paths!")
+            
+            # print("TO DO: Propogate the trajectory forward, storing the resulting points in local_paths!")
             for t in range(1, self.horizon_timesteps + 1):
-                # propogate trajectory forward, assuming perfect control of velocity and no dynamic effects
-                pass
+                for i in range (self.num_opts):
+                    
+                    vel, rot_vel = self.all_opts_scaled[i]
+                    x, y, theta = local_paths[t-1, i]
+                    R = np.matrix([
+                        [np.cos(theta), -np.sin(theta), 0],
+                        [np.sin(theta), np.cos(theta), 0],
+                        [0, 0, 1]
+                    ])
+                    q_dot = R @ np.array([[vel, 0, rot_vel]]).T
+                    dx = q_dot[0]
+                    dy = q_dot[1]
+                    dtheta = q_dot[2]
+                    local_paths[t, i] = np.array([x+dx, y+dy, theta+dtheta]).reshape((3,))
 
             # check all trajectory points for collisions
             # first find the closest collision point in the map to each local path point
             local_paths_pixels = (self.map_origin[:2] + local_paths[:, :, :2]) / self.map_resolution
-            valid_opts = range(self.num_opts)
+            valid_opts = list(range(self.num_opts))
             local_paths_lowest_collision_dist = np.ones(self.num_opts) * 50
 
-            print("TO DO: Check the points in local_path_pixels for collisions")
+            #print("TO DO: Check the points in local_path_pixels for collisions")
+            
             for opt in range(local_paths_pixels.shape[1]):
                 for timestep in range(local_paths_pixels.shape[0]):
-                    pass
+                    x = local_paths_pixels[timestep, opt] [0]
+                    y = local_paths_pixels[timestep, opt] [1]
+
+                    # Check if the point is within the map bounds and for collisions
+                    if (0 <= x < self.map_np.shape[1]) and (
+                        0 <= y < self.map_np.shape[0]
+                    ):
+                        # print(f"y: {y} ({type(y)})")
+                        # print(f"x: {x} ({type(x)})")
+                        if self.map_np[int(y), int(x)] < 0: 
+                            valid_opts.remove(opt) 
+                            break  
+                    else:
+                        valid_opts.remove(opt) 
+                        break  
 
             # remove trajectories that were deemed to have collisions
-            print("TO DO: Remove trajectories with collisions!")
+            # print("TO DO: Remove trajectories with collisions!")
 
             # calculate final cost and choose best option
-            print("TO DO: Calculate the final cost and choose the best control option!")
-            final_cost = np.zeros(self.num_opts)
+            # print("TO DO: Calculate the final cost and choose the best control option!")
+            # final_cost = np.zeros(self.num_opts)
+            final_cost = np.ones(self.num_opts) * np.inf
+            for opt in valid_opts:
+                last_pose = local_paths[-1, opt]
+                v_error = np.linalg.norm(last_pose[:2] - self.cur_goal[:2])
+
+                rot_error = np.arctan2(self.cur_goal[1] - last_pose[1], self.cur_goal[0] - last_pose[0]) - last_pose[2]
+                rot_error = (rot_error + np.pi) % (2 * np.pi) - np.pi  # Normalize to [-π, π]
+                # calculate costs based on distance to goal and rotation error
+                distance_cost = v_error  # Assuming distance cost is directly proportional to trans_error
+                rotation_cost = rot_error * ROT_DIST_MULT
+                obstacle_cost = OBS_DIST_MULT / max(local_paths_lowest_collision_dist[opt], 1e-6)  # Avoid divide-by-zero
+
+                # sum up the costs
+                final_cost[opt] = distance_cost + rotation_cost + obstacle_cost
+
             if final_cost.size == 0:  # hardcoded recovery if all options have collision
                 control = [-.1, 0]
             else:
-                best_opt = valid_opts[final_cost.argmin()]
+                # print(valid_opts)
+                # print(len(valid_opts))
+                # print(final_cost.argmin())
+                # print(valid_opts[final_cost.argmin()])
+                if len(valid_opts) < 1:
+                    continue
+                print(valid_opts)
+                # best_opt = valid_opts[final_cost.argmin()]
+                best_opt = final_cost.argmin()
+                for opt in valid_opts:
+                    print(self.all_opts[opt])
+                print(final_cost)
+                print(best_opt)
+
                 control = self.all_opts[best_opt]
+                print(control)
                 self.local_path_pub.publish(utils.se2_pose_list_to_path(local_paths[:, best_opt], 'map'))
 
             # send command to robot
@@ -184,6 +240,13 @@ class PathFollower():
             #     control=control, time=(rospy.Time.now() - tic).to_sec(), max_time=1/CONTROL_RATE))
 
             self.rate.sleep()
+
+            # print(self.pose_in_map_np)
+            # print(last_pose)
+
+            if np.linalg.norm(last_pose[:2] - np.array([7, 0])) < 0.5:
+                print("reached goal!")
+                break
 
     def update_pose(self):
         # Update numpy poses with current pose using the tf_buffer
