@@ -17,8 +17,8 @@ from visualization_msgs.msg import Marker
 import utils
 
 
-TRANS_GOAL_TOL = .1  # m, tolerance to consider a goal complete
-ROT_GOAL_TOL = .3  # rad, tolerance to consider a goal complete
+TRANS_GOAL_TOL = .5  # m, tolerance to consider a goal complete
+ROT_GOAL_TOL = .8  # rad, tolerance to consider a goal complete
 TRANS_VEL_OPTS = [0, 0.025, 0.13, 0.26]  # m/s, max of real robot is .26
 ROT_VEL_OPTS = np.linspace(-1.82, 1.82, 11)  # rad/s, max of real robot is 1.82
 CONTROL_RATE = 5  # Hz, how frequently control signals are sent
@@ -28,7 +28,7 @@ COLLISION_RADIUS = 0.225  # m, radius from base_link to use for collisions, min 
 ROT_DIST_MULT = .1  # multiplier to change effect of rotational distance in choosing correct control
 OBS_DIST_MULT = .1  # multiplier to change the effect of low distance to obstacles on a path
 MIN_TRANS_DIST_TO_USE_ROT = TRANS_GOAL_TOL  # m, robot has to be within this distance to use rot distance in cost
-PATH_NAME = 'path.npy'  # saved path from l2_planning.py, should be in the same directory as this file
+PATH_NAME = 'shortest_path.npy'  # saved path from l2_planning.py, should be in the same directory as this file
 
 # here are some hardcoded paths to use if you want to develop l2_planning and this file in parallel
 # TEMP_HARDCODE_PATH = [[2, 0, 0], [2.75, -1, -np.pi/2], [2.75, -4, -np.pi/2], [2, -4.4, np.pi]]  # almost collision-free
@@ -69,17 +69,17 @@ class PathFollower():
         self.collision_marker_pub = rospy.Publisher('~collision_marker', Marker, queue_size=1)
 
         # map
-        # map = rospy.wait_for_message('/map', OccupancyGrid)
-        # self.map_np = np.array(map.data).reshape(map.info.height, map.info.width)
-        # self.map_resolution = round(map.info.resolution, 5)
-        # self.map_origin = -utils.se2_pose_from_pose(map.info.origin)  # negative because of weird way origin is stored
-        # self.map_nonzero_idxes = np.argwhere(self.map_np)
-        map_filename = "myhal.png"
-        occupancy_map = load_map(map_filename)
-        self.map_np = occupancy_map
-        self.map_resolution = 0.05
-        self.map_origin = np.array([ 0.2 , 0.2 ,-0. ])
+        map = rospy.wait_for_message('/map', OccupancyGrid)
+        self.map_np = np.array(map.data).reshape(map.info.height, map.info.width)
+        self.map_resolution = round(map.info.resolution, 5)
+        self.map_origin = -utils.se2_pose_from_pose(map.info.origin)  # negative because of weird way origin is stored
         self.map_nonzero_idxes = np.argwhere(self.map_np)
+        # map_filename = "myhal.png"
+        # occupancy_map = load_map(map_filename)
+        # self.map_np = occupancy_map
+        # self.map_resolution = 0.05
+        # self.map_origin = np.array([ 0.2 , 0.2 ,-0. ])
+        # self.map_nonzero_idxes = np.argwhere(self.map_np)
 
 
         # collisions
@@ -106,7 +106,9 @@ class PathFollower():
         cur_dir = os.path.dirname(os.path.realpath(__file__))
 
         # to use the temp hardcoded paths above, switch the comment on the following two lines
-        self.path_tuples = np.load(os.path.join(cur_dir, 'path.npy')).T
+        self.path_tuples = np.load(os.path.join(cur_dir, 'shortest_path.npy'))
+        self.path_tuples[1] = -self.path_tuples[1]
+        self.path_tuples = self.path_tuples.T
         # self.path_tuples = np.array(TEMP_HARDCODE_PATH)
 
         self.path = utils.se2_pose_list_to_path(self.path_tuples, 'map')
