@@ -18,11 +18,11 @@ import utils
 
 
 TRANS_GOAL_TOL = .5  # m, tolerance to consider a goal complete
-ROT_GOAL_TOL = 1.5 #.8  # rad, tolerance to consider a goal complete
-TRANS_VEL_OPTS = [0, 0.025, 0.13, 0.26, -0.05]  # m/s, max of real robot is .26
+ROT_GOAL_TOL = .8  # rad, tolerance to consider a goal complete
+TRANS_VEL_OPTS = [0, 0.025, 0.13, 0.26]  # m/s, max of real robot is .26
 ROT_VEL_OPTS = np.linspace(-1.82, 1.82, 11)  # rad/s, max of real robot is 1.82
 CONTROL_RATE = 5  # Hz, how frequently control signals are sent
-CONTROL_HORIZON = 8 #5  # seconds. if this is set too high and INTEGRATION_DT is too low, code will take a long time to run!
+CONTROL_HORIZON = 5  # seconds. if this is set too high and INTEGRATION_DT is too low, code will take a long time to run!
 INTEGRATION_DT = .025  # s, delta t to propagate trajectories forward by
 COLLISION_RADIUS = 0.225  # m, radius from base_link to use for collisions, min of 0.2077 based on dimensions of .281 x .306
 ROT_DIST_MULT = .1  # multiplier to change effect of rotational distance in choosing correct control
@@ -185,7 +185,7 @@ class PathFollower():
                     ):
                         # print(f"y: {y} ({type(y)})")
                         # print(f"x: {x} ({type(x)})")
-                        if self.map_np[int(y), int(x)] != 0: 
+                        if self.map_np[int(y), int(x)] < 0: 
                             valid_opts.remove(opt) 
                             break  
                     else:
@@ -211,7 +211,7 @@ class PathFollower():
                 obstacle_cost = OBS_DIST_MULT / max(local_paths_lowest_collision_dist[opt], 1e-6)  # Avoid divide-by-zero
 
                 # sum up the costs
-                final_cost[opt] = 5*distance_cost + 1*rotation_cost + 10*obstacle_cost
+                final_cost[opt] = distance_cost + rotation_cost + obstacle_cost
 
             if final_cost.size == 0:  # hardcoded recovery if all options have collision
                 control = [-.1, 0]
@@ -246,9 +246,9 @@ class PathFollower():
             # print(self.pose_in_map_np)
             # print(last_pose)
 
-            # if np.linalg.norm(last_pose[:2] - np.array([7, 0])) < 0.5:
-            #     print("reached goal!")
-            #     break
+            if np.linalg.norm(last_pose[:2] - np.array([7, 0])) < 0.5:
+                print("reached goal!")
+                break
 
     def update_pose(self):
         # Update numpy poses with current pose using the tf_buffer
