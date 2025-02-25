@@ -110,25 +110,32 @@ class PathPlanner:
 
         return self.closest_node(point) != -1
     
-    def closest_node(self, point) -> int:
+    def closest_node(self, point, k=1) -> int:
         #Returns the index of the closest node
         # print("TO DO: Implement a method to get the closest node to a sampled point")
 
-        min_dist = np.inf
-        closest = -1        # index of current closest node
+        # min_dist = np.ones(k) * np.inf
+        # closest = np.ones(k) * -1        # index of current closest node
 
-        # calculate euclidean distance to each node; also check for duplicates
-        for i, n in enumerate(self.nodes):
-            # duplicate?
-            if point[0, 0] == n.point[0, 0] and point[1, 0] == n.point[1, 0]:
-                return -1
+        # # calculate euclidean distance to each node; also check for duplicates
+        # for i, n in enumerate(self.nodes):
+        #     # duplicate?
+        #     if point[0, 0] == n.point[0, 0] and point[1, 0] == n.point[1, 0]:
+        #         return -1
 
-            distance = np.linalg.norm(point - n.point[0:2])
-            if distance < min_dist:
-                min_dist = distance
-                closest = i
+        #     distance = np.linalg.norm(point - n.point[0:2])
+        #     if distance < min_dist:
+        #         min_dist = distance
+        #         closest = i
 
-        return closest
+        # return closest
+        points = np.hstack([n.point[:2] for n in self.nodes])
+        distances = np.linalg.norm(points - point, axis=0)
+        order = np.argsort(distances)
+        
+        if k == 1:
+            return order[0]
+        return order[:k]
     
     def simulate_trajectory(self, point_i: np.ndarray, point_s: np.ndarray):
         #Simulates the non-holonomic motion of the robot.
@@ -465,9 +472,32 @@ class PathPlanner:
             point = self.sample_map_space()
 
             #Closest Node
+            # closest_node_id = self.closest_node(point)
+            # if closest_node_id == -1:
+            #     continue    # duplicate
+            # closest_node_ids = self.closest_node(point, k=5)
+            # closest_node_id = -1
+            
+            # for cni in closest_node_ids:
+
+            #     #Simulate trajectory
+            #     trajectory_o = self.simulate_trajectory(self.nodes[cni].point, point)
+
+            #     #Check for Collision
+            #     # print("TO DO: Check for collision.")
+            #     traj_cells = self.points_to_robot_circle(trajectory_o[0:2, :])
+            #     if np.any(self.occupancy_map[traj_cells[0, :], traj_cells[1, :]] < 1):
+            #         continue
+            #     if np.any(trajectory_o[0, :] < self.bounds[0, 0]) or np.any(trajectory_o[0, :] > self.bounds[0, 1]) \
+            #         or np.any(trajectory_o[1, :] < self.bounds[1, 0]) or np.any(trajectory_o[1, :] > self.bounds[1, 1]):
+            #         continue
+
+            #     closest_node_id = cni
+
             closest_node_id = self.closest_node(point)
+                
             if closest_node_id == -1:
-                continue    # duplicate
+                continue
 
             #Simulate trajectory
             trajectory_o = self.simulate_trajectory(self.nodes[closest_node_id].point, point)
@@ -539,10 +569,18 @@ class PathPlanner:
                     # if n.parent_id == 5 and i == 8:
                     #     print("checkpoint")
                     self.nodes[n.parent_id].children_ids.remove(i)
+
+                    old_traj = self.simulate_trajectory(self.nodes[n.parent_id].point, n.point[:2])
+                    for j, tp in enumerate(old_traj[0:2, :].T):
+                        self.window.add_point(tp, radius=1, color=(255, 255, 255))
+
                     n.parent_id = new_node_id
                     self.nodes[new_node_id].children_ids.append(i)
 
                     self.update_children(i, cost_diff)
+
+                    for j, tp in enumerate(traj[0:2, :].T):
+                        self.window.add_point(tp, radius=1, color=(0, 50, 0))
 
             #Check for early end
             # print("TO DO: Check for early end")
@@ -556,14 +594,16 @@ class PathPlanner:
 
 
             # expand search space
-            if step > 0.7*max_steps:
+            # if step > 0.7*max_steps:
+            if step > 0.5*max_steps:
                 # self.workspace[0, 0] = max(self.bounds[0, 0], self.goal_point[0] - focused_window)
                 # self.workspace[1, 0] = max(self.bounds[1, 0], self.goal_point[1] - focused_window)
                 # self.workspace[0, 1] = min(self.bounds[0, 1], self.goal_point[0] + focused_window)
                 # self.workspace[1, 1] = min(self.bounds[1, 1], self.goal_point[1] + focused_window)  
                 # [38, -42], [45, -42], [38, -46], [45, -46]
                 self.workspace = np.array([[38, 45], [-46, -42]]) 
-            elif step > 0.6*max_steps: 
+            # elif step > 0.6*max_steps: 
+            elif step > 0.35*max_steps:
                 self.workspace = np.array([[25, 45], [-48, -30]])                
             elif step > 0.5*max_steps:
                 self.workspace = np.array([[20, 45], [-48, -10]]) 
@@ -585,10 +625,10 @@ class PathPlanner:
             # for i, (tp1, tp2) in enumerate(zip(trajectory_o[0:2, :-1].T, trajectory_o[0:2, 1:].T)):
             #     self.window.add_line(tp1, tp2)
             # view window
-            self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 0]]), width=1, color=(255, 200, 0))
-            self.window.add_line(np.array([self.workspace[0, 1], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=1, color=(255, 200, 0))
-            self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 0], self.workspace[1, 1]]), width=1, color=(255, 200, 0))
-            self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 1]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=1, color=(255, 200, 0))
+            # self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 0]]), width=1, color=(255, 200, 0))
+            # self.window.add_line(np.array([self.workspace[0, 1], self.workspace[1, 0]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=1, color=(255, 200, 0))
+            # self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 0]]), np.array([self.workspace[0, 0], self.workspace[1, 1]]), width=1, color=(255, 200, 0))
+            # self.window.add_line(np.array([self.workspace[0, 0], self.workspace[1, 1]]), np.array([self.workspace[0, 1], self.workspace[1, 1]]), width=1, color=(255, 200, 0))
 
             if at_goal:
                 break
@@ -647,7 +687,7 @@ def main():
     node_path_metric = np.hstack(path_planner.recover_path())
 
     #Leftover test functions
-    np.save("rrt_star_path2.npy", node_path_metric)
+    np.save("rrt_star_path3.npy", node_path_metric)
     np.save("nodes.npy", nodes)
 
 
