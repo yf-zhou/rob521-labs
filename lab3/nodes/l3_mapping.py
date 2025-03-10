@@ -139,7 +139,6 @@ class OccupancyGripMap:
                 
         # convert metres measurement to pixels
         if range_mes == np.inf:
-            # rospy.loginfo("range_mes = 0")
             distance = norm([self.width, self.height])
         else:
             distance = range_mes / CELL_SIZE
