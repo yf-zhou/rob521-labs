@@ -148,7 +148,6 @@ class OccupancyGripMap:
         x_end = x_start + int(round(distance*np.cos(angle)))
         y_end = y_start + int(round(distance*np.sin(angle)))
         
-        # px_coords_y, px_coords_x = ray_trace(y_start, x_start, y_end, x_end)
         px_coords = np.vstack(ray_trace(y_start, x_start, y_end, x_end))
         
         mask1 = px_coords[0] >= 0
@@ -174,7 +173,6 @@ class OccupancyGripMap:
         return map, log_odds
 
     def log_odds_to_probability(self, values):
-        # print(values)
         return np.exp(values) / (1 + np.exp(values))
 
 
