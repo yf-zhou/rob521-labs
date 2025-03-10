@@ -100,10 +100,6 @@ class OccupancyGripMap:
         # YOUR CODE HERE!!! Loop through each measurement in scan_msg to get the correct angle and
         # x_start and y_start to send to your ray_trace_update function.
         
-        # init maps for debugging
-        # update_log_map = np.zeros((self.width, self.height))
-        # update_map = np.zeros((self.width, self.height), dtype=np.uint8)
-        
         # loop through each measurement
         for i, range_mes in enumerate(scan_msg.ranges[::SCAN_DOWNSAMPLE]):
             # if no obstacles in range, don't update
@@ -114,21 +110,10 @@ class OccupancyGripMap:
             angle = odom_map[2] + np.deg2rad(i*SCAN_DOWNSAMPLE-1)
             
             # call ray trace update
-            # update_map, update_log_map = self.ray_trace_update(update_map, update_log_map, odom_map[0], odom_map[1], angle, range_mes)
             x_start = int(round(odom_map[0]/CELL_SIZE))
             y_start = int(round(odom_map[1]/CELL_SIZE))
             self.np_map, self.log_odds = self.ray_trace_update(self.np_map, self.log_odds, x_start, y_start, angle, range_mes)
-            
-        # self.log_odds += update_log_map
-        # self.np_map += update_map
-        
-        # rospy.loginfo(scan_msg.ranges)
-        # rospy.loginfo(len(scan_msg.ranges))
-        # rospy.loginfo(self.log_odds)
-        # rospy.loginfo(self.log_odds.shape)
-        
-        # rospy.loginfo(odom_map)
-        
+                    
         rospy.loginfo(list(self.log_odds[200]))
 
         # publish the message
@@ -151,8 +136,7 @@ class OccupancyGripMap:
         # YOUR CODE HERE!!! You should modify the log_odds object and the numpy map based on the outputs from
         # ray_trace and the equations from class. Your numpy map must be an array of int8s with 0 to 100 representing
         # probability of occupancy, and -1 representing unknown.
-        
-        
+                
         # convert metres measurement to pixels
         if range_mes == np.inf:
             # rospy.loginfo("range_mes = 0")
@@ -160,13 +144,9 @@ class OccupancyGripMap:
         else:
             distance = range_mes / CELL_SIZE
         
-        # rospy.loginfo([distance, range_mes])
-        
         # identify pixels along ray: find ray end position based on angle, get pixels using ray_trace
         x_end = x_start + int(round(distance*np.cos(angle)))
         y_end = y_start + int(round(distance*np.sin(angle)))
-        
-        # rospy.loginfo([y_start, x_start, y_end, x_end])
         
         # px_coords_y, px_coords_x = ray_trace(y_start, x_start, y_end, x_end)
         px_coords = np.vstack(ray_trace(y_start, x_start, y_end, x_end))
@@ -182,13 +162,11 @@ class OccupancyGripMap:
         px_coords_x = px_coords[1, mask]
         
         # update relevant pixels in self.log_odds
-        # log_odds[px_coords_y[:-1], px_coords_x[:-1]] -= BETA
         log_odds[px_coords_y, px_coords_x] -= BETA
         if 0 <= y_end < map.shape[0] and 0 <= x_end < map.shape[1]:
             log_odds[y_end, x_end] += ALPHA + BETA
         
         log_odds = np.clip(log_odds, MIN_LOG_ODDS, MAX_LOG_ODDS)
-        # log_odds[y_end, x_end] += ALPHA
         
         # update relevant entries in self.np_map
         map[px_coords_y, px_coords_x] = self.log_odds_to_probability(log_odds[px_coords_y, px_coords_x])
