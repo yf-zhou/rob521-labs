@@ -76,7 +76,10 @@ class wheelBaselineEstimator():
 
             # # YOUR CODE HERE!!!
             # Calculate the radius of the wheel based on encoder measurements
-
+            left_distance = ((self.del_left_encoder / TICKS_PER_ROTATION) * 2 * np.pi * WHEEL_RADIUS)
+            right_distance = ((self.del_right_encoder / TICKS_PER_ROTATION) * 2 * np.pi * WHEEL_RADIUS)
+            separation = (right_distance - left_distance) / (NUM_ROTATIONS * 2 * np.pi)
+            
             # separation = ##
             # print('Calibrated Separation: {} m'.format(separation))
 
