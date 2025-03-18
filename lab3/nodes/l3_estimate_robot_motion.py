@@ -80,14 +80,34 @@ class WheelOdom:
             # # YOUR CODE HERE!!!
             # Update your odom estimates with the latest encoder measurements and populate the relevant area
             # of self.pose and self.twist with estimated position, heading and velocity
+            
+            #distance traveled by each wheel in tick
+            change_left = (le - self.last_enc_l) * RAD_PER_TICK * WHEEL_RADIUS
+            change_right = (re - self.last_enc_r) * RAD_PER_TICK * WHEEL_RADIUS
+            #avg traveled
+            avg_change = (change_left + change_right) / 2
 
-            # self.pose.position.x = xx
-            # self.pose.position.y = xx
-            # self.pose.orientation = xx
+            #time passed
+            current_time = rospy.Time.now()
+            time_interval = (current_time - self.last_time).to_sec()
+            
+            #updates
+            self.last_time = current_time
+            self.last_enc_l = le
+            self.last_enc_r = re
 
-            # self.twist.linear.x = mu_dot[0].item()
-            # self.twist.linear.y = mu_dot[1].item()
-            # self.twist.angular.z = mu_dot[2].item()
+            #orientation change
+            dtheta = (change_right - change_left) / (2*BASELINE)
+            theta = euler_from_ros_quat(self.pose.orientation)[2] + dtheta
+            
+            #pose and twist updates
+            self.pose.position.x = self.pose.position.x + avg_change * np.cos(theta)
+            self.pose.position.y = self.pose.position.y + avg_change * np.sin(theta)
+            self.pose.orientation = ros_quat_from_euler((0,0,theta))
+
+            self.twist.linear.x = avg_change / time_interval
+            self.twist.linear.y = 0
+            self.twist.angular.z = dtheta / time_interval
 
             # publish the updates as a topic and in the tf tree
             current_time = rospy.Time.now()
@@ -114,7 +134,6 @@ class WheelOdom:
     def odom_cb(self, odom_msg):
         # get odom from turtlebot3 packages
         self.odom = odom_msg
-        self.bag.write('odom_onboard', self.odom)
 
     def plot(self, bag):
         data = {"odom_est":{"time":[], "data":[]}, 
